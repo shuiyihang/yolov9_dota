@@ -59,7 +59,7 @@ class TaskAlignedAssigner(nn.Module):
         self.eps = eps
 
     @torch.no_grad()
-    def forward(self, pd_scores, pd_bboxes, anc_points, gt_labels, gt_bboxes, mask_gt):
+    def forward(self, pd_scores, pd_bboxes, anc_points, gt_labels, gt_bboxes,gt_angles, mask_gt):
         """This code referenced to
            https://github.com/Nioolek/PPYOLOE_pytorch/blob/master/ppyoloe/assigner/tal_assigner.py
 
@@ -92,7 +92,7 @@ class TaskAlignedAssigner(nn.Module):
         target_gt_idx, fg_mask, mask_pos = select_highest_overlaps(mask_pos, overlaps, self.n_max_boxes)
 
         # assigned target
-        target_labels, target_bboxes, target_scores = self.get_targets(gt_labels, gt_bboxes, target_gt_idx, fg_mask)
+        target_labels, target_bboxes, target_scores, target_angles = self.get_targets(gt_labels, gt_bboxes, gt_angles,target_gt_idx, fg_mask)
 
         # normalize
         align_metric *= mask_pos
@@ -101,7 +101,7 @@ class TaskAlignedAssigner(nn.Module):
         norm_align_metric = (align_metric * pos_overlaps / (pos_align_metrics + self.eps)).amax(-2).unsqueeze(-1)
         target_scores = target_scores * norm_align_metric
 
-        return target_labels, target_bboxes, target_scores, fg_mask.bool()
+        return target_labels, target_bboxes, target_scores, target_angles, fg_mask.bool()
 
     def get_pos_mask(self, pd_scores, pd_bboxes, gt_labels, gt_bboxes, anc_points, mask_gt):
 
@@ -153,7 +153,7 @@ class TaskAlignedAssigner(nn.Module):
         is_in_topk = torch.where(is_in_topk > 1, 0, is_in_topk)
         return is_in_topk.to(metrics.dtype)
 
-    def get_targets(self, gt_labels, gt_bboxes, target_gt_idx, fg_mask):
+    def get_targets(self, gt_labels, gt_bboxes, gt_angles, target_gt_idx, fg_mask):
         """
         Args:
             gt_labels: (b, max_num_obj, 1)
@@ -170,10 +170,13 @@ class TaskAlignedAssigner(nn.Module):
         # assigned target boxes, (b, max_num_obj, 4) -> (b, h*w)
         target_bboxes = gt_bboxes.view(-1, 4)[target_gt_idx]
 
+        test_shape = gt_angles.shape[-1]
+        target_angles = gt_angles.view(-1,gt_angles.shape[-1])[target_gt_idx]
+
         # assigned target scores
         target_labels.clamp(0)
         target_scores = F.one_hot(target_labels, self.num_classes)  # (b, h*w, 80)
         fg_scores_mask = fg_mask[:, :, None].repeat(1, 1, self.num_classes)  # (b, h*w, 80)
         target_scores = torch.where(fg_scores_mask > 0, target_scores, 0)
 
-        return target_labels, target_bboxes, target_scores
+        return target_labels, target_bboxes, target_scores,target_angles

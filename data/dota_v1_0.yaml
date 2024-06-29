@@ -1,6 +1,6 @@
-path: E:\\yolov9\\yolov9\\datasets  # dataset root dir
-train: ./images/train
-val: ./images/train  # val images (relative to 'path') 5000 images
+path: ./datasets  # dataset root dir
+train: ./debug_train_dataset
+val: ./debug_val_dataset # val images (relative to 'path') 5000 images
 #test: test-dev2017.txt  # 20288 of 40670 images, submit to https://competitions.codalab.org/competitions/20794
 
 # Classes

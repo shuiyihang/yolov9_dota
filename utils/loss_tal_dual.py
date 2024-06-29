@@ -112,6 +112,7 @@ class ComputeLoss:
         # Define criteria
         BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h["cls_pw"]], device=device), reduction='none')
 
+        smooth_theta = nn.SmoothL1Loss()
         # Class label smoothing https://arxiv.org/pdf/1902.04103.pdf eqn 3
         self.cp, self.cn = smooth_BCE(eps=h.get("label_smoothing", 0.0))  # positive, negative BCE targets
 
@@ -129,6 +130,7 @@ class ComputeLoss:
         self.nl = m.nl  # number of layers
         self.no = m.no
         self.reg_max = m.reg_max
+        self.angle_dim = m.angle_dim
         self.device = device
 
         self.assigner = TaskAlignedAssigner(topk=int(os.getenv('YOLOM', 10)),
@@ -144,13 +146,15 @@ class ComputeLoss:
         self.proj = torch.arange(m.reg_max).float().to(device)  # / 120.0
         self.use_dfl = use_dfl
 
+        self.theta_loss_fn = smooth_theta
+
     def preprocess(self, targets, batch_size, scale_tensor):
         if targets.shape[0] == 0:
-            out = torch.zeros(batch_size, 0, 5, device=self.device)
+            out = torch.zeros(batch_size, 0, 6, device=self.device)
         else:
             i = targets[:, 0]  # image index
             _, counts = i.unique(return_counts=True)
-            out = torch.zeros(batch_size, counts.max(), 5, device=self.device)
+            out = torch.zeros(batch_size, counts.max(), 6, device=self.device)
             for j in range(batch_size):
                 matches = i == j
                 n = matches.sum()
@@ -168,17 +172,17 @@ class ComputeLoss:
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
     def __call__(self, p, targets, img=None, epoch=0):
-        loss = torch.zeros(3, device=self.device)  # box, cls, dfl
+        loss = torch.zeros(4, device=self.device)  # box, cls, dfl,theta
         feats = p[1][0] if isinstance(p, tuple) else p[0]
         feats2 = p[1][1] if isinstance(p, tuple) else p[1]
         
-        pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
-            (self.reg_max * 4, self.nc), 1)
+        pred_distri, pred_scores, pred_theta = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
+            (self.reg_max * 4, self.nc, self.angle_dim), 1)
         pred_scores = pred_scores.permute(0, 2, 1).contiguous()
         pred_distri = pred_distri.permute(0, 2, 1).contiguous()
         
-        pred_distri2, pred_scores2 = torch.cat([xi.view(feats2[0].shape[0], self.no, -1) for xi in feats2], 2).split(
-            (self.reg_max * 4, self.nc), 1)
+        pred_distri2, pred_scores2, pred_theta2 = torch.cat([xi.view(feats2[0].shape[0], self.no, -1) for xi in feats2], 2).split(
+            (self.reg_max * 4, self.nc, self.angle_dim), 1)
         pred_scores2 = pred_scores2.permute(0, 2, 1).contiguous()
         pred_distri2 = pred_distri2.permute(0, 2, 1).contiguous()
 
@@ -189,26 +193,28 @@ class ComputeLoss:
 
         # targets
         targets = self.preprocess(targets, batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
-        gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
+        gt_labels, gt_bboxes, gt_thetas= targets.split((1, 4, 1), 2)  # cls, xyxy, theta
         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
 
         # pboxes
         pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
         pred_bboxes2 = self.bbox_decode(anchor_points, pred_distri2)  # xyxy, (b, h*w, 4)
 
-        target_labels, target_bboxes, target_scores, fg_mask = self.assigner(
+        target_labels, target_bboxes, target_scores, target_angles, fg_mask = self.assigner(
             pred_scores.detach().sigmoid(),
             (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
             anchor_points * stride_tensor,
             gt_labels,
             gt_bboxes,
+            gt_thetas,
             mask_gt)
-        target_labels2, target_bboxes2, target_scores2, fg_mask2 = self.assigner2(
+        target_labels2, target_bboxes2, target_scores2, target_angles2, fg_mask2 = self.assigner2(
             pred_scores2.detach().sigmoid(),
             (pred_bboxes2.detach() * stride_tensor).type(gt_bboxes.dtype),
             anchor_points * stride_tensor,
             gt_labels,
             gt_bboxes,
+            gt_thetas,
             mask_gt)
 
         target_bboxes /= stride_tensor
@@ -221,6 +227,11 @@ class ComputeLoss:
         loss[1] = self.BCEcls(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum # BCE
         loss[1] *= 0.25
         loss[1] += self.BCEcls(pred_scores2, target_scores2.to(dtype)).sum() / target_scores_sum2 # BCE
+
+        # theta loss
+        loss[3] = self.theta_loss_fn(pred_theta,target_angles.to(dtype)*fg_mask).sum() / target_scores_sum
+        loss[3] *= 0.25
+        loss[3] += self.theta_loss_fn(pred_theta2, target_angles2.to(dtype)*fg_mask2).sum() / target_scores_sum2
 
         # bbox loss
         if fg_mask.sum():
@@ -247,6 +258,7 @@ class ComputeLoss:
         loss[0] *= 7.5  # box gain
         loss[1] *= 0.5  # cls gain
         loss[2] *= 1.5  # dfl gain
+        loss[3] *= 1.0
 
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
 

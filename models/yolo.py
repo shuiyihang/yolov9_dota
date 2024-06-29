@@ -200,7 +200,8 @@ class DualDDetect(nn.Module):
         self.nc = nc  # number of classes
         self.nl = len(ch) // 2  # number of detection layers
         self.reg_max = 16
-        self.no = nc + self.reg_max * 4  # number of outputs per anchor
+        self.angle_dim = 1
+        self.no = nc + self.angle_dim + self.reg_max * 4  # number of outputs per anchor
         self.inplace = inplace  # use inplace ops (e.g. slice assignment)
         self.stride = torch.zeros(self.nl)  # strides computed during build
 
@@ -209,11 +210,11 @@ class DualDDetect(nn.Module):
         self.cv2 = nn.ModuleList(
             nn.Sequential(Conv(x, c2, 3), Conv(c2, c2, 3, g=4), nn.Conv2d(c2, 4 * self.reg_max, 1, groups=4)) for x in ch[:self.nl])
         self.cv3 = nn.ModuleList(
-            nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc, 1)) for x in ch[:self.nl])
+            nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc + self.angle_dim, 1)) for x in ch[:self.nl])
         self.cv4 = nn.ModuleList(
             nn.Sequential(Conv(x, c4, 3), Conv(c4, c4, 3, g=4), nn.Conv2d(c4, 4 * self.reg_max, 1, groups=4)) for x in ch[self.nl:])
         self.cv5 = nn.ModuleList(
-            nn.Sequential(Conv(x, c5, 3), Conv(c5, c5, 3), nn.Conv2d(c5, self.nc, 1)) for x in ch[self.nl:])
+            nn.Sequential(Conv(x, c5, 3), Conv(c5, c5, 3), nn.Conv2d(c5, self.nc + self.angle_dim, 1)) for x in ch[self.nl:])
         self.dfl = DFL(self.reg_max)
         self.dfl2 = DFL(self.reg_max)
 
