@@ -281,7 +281,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         if RANK != -1:
             train_loader.sampler.set_epoch(epoch)
         pbar = enumerate(train_loader)
-        LOGGER.info(('\n' + '%11s' * 7) % ('Epoch', 'GPU_mem', 'box_loss', 'cls_loss', 'dfl_loss', 'angle_loss', 'Instances', 'Size'))
+        LOGGER.info(('\n' + '%11s' * 8) % ('Epoch', 'GPU_mem', 'box_loss', 'cls_loss', 'dfl_loss', 'angle_loss', 'Instances', 'Size'))
         if RANK in {-1, 0}:
             pbar = tqdm(pbar, total=nb, bar_format=TQDM_BAR_FORMAT)  # progress bar
         optimizer.zero_grad()
@@ -444,7 +444,7 @@ def parse_opt(known=False):
     parser.add_argument('--cfg', type=str, default=ROOT / 'models/detect/yolov9-s.yaml', help='model.yaml path')
     parser.add_argument('--data', type=str, default=ROOT / 'data/dota_v1_0.yaml', help='dataset.yaml path')
     parser.add_argument('--hyp', type=str, default=ROOT / 'data/hyps/hyp.scratch-high.yaml', help='hyperparameters path')
-    parser.add_argument('--epochs', type=int, default=5, help='total training epochs')
+    parser.add_argument('--epochs', type=int, default=2, help='total training epochs')
     parser.add_argument('--batch-size', type=int, default=1, help='total batch size for all GPUs, -1 for autobatch')
     parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=1024, help='train, val image size (pixels)')
     parser.add_argument('--rect', action='store_true', help='rectangular training')

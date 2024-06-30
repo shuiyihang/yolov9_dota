@@ -180,11 +180,13 @@ class ComputeLoss:
             (self.reg_max * 4, self.nc, self.angle_dim), 1)
         pred_scores = pred_scores.permute(0, 2, 1).contiguous()
         pred_distri = pred_distri.permute(0, 2, 1).contiguous()
-        
+        pred_theta = pred_theta.permute(0, 2, 1).contiguous()
+
         pred_distri2, pred_scores2, pred_theta2 = torch.cat([xi.view(feats2[0].shape[0], self.no, -1) for xi in feats2], 2).split(
             (self.reg_max * 4, self.nc, self.angle_dim), 1)
         pred_scores2 = pred_scores2.permute(0, 2, 1).contiguous()
         pred_distri2 = pred_distri2.permute(0, 2, 1).contiguous()
+        pred_theta2 = pred_theta2.permute(0, 2, 1).contiguous()
 
         dtype = pred_scores.dtype
         batch_size, grid_size = pred_scores.shape[:2]
@@ -203,6 +205,7 @@ class ComputeLoss:
         target_labels, target_bboxes, target_scores, target_angles, fg_mask = self.assigner(
             pred_scores.detach().sigmoid(),
             (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
+            pred_theta.detach(),
             anchor_points * stride_tensor,
             gt_labels,
             gt_bboxes,
@@ -211,6 +214,7 @@ class ComputeLoss:
         target_labels2, target_bboxes2, target_scores2, target_angles2, fg_mask2 = self.assigner2(
             pred_scores2.detach().sigmoid(),
             (pred_bboxes2.detach() * stride_tensor).type(gt_bboxes.dtype),
+            pred_theta2.detach(),
             anchor_points * stride_tensor,
             gt_labels,
             gt_bboxes,

@@ -59,7 +59,7 @@ class TaskAlignedAssigner(nn.Module):
         self.eps = eps
 
     @torch.no_grad()
-    def forward(self, pd_scores, pd_bboxes, anc_points, gt_labels, gt_bboxes,gt_angles, mask_gt):
+    def forward(self, pd_scores, pd_bboxes, pd_angles, anc_points, gt_labels, gt_bboxes,gt_angles, mask_gt):
         """This code referenced to
            https://github.com/Nioolek/PPYOLOE_pytorch/blob/master/ppyoloe/assigner/tal_assigner.py
 
@@ -84,6 +84,7 @@ class TaskAlignedAssigner(nn.Module):
             return (torch.full_like(pd_scores[..., 0], self.bg_idx).to(device),
                     torch.zeros_like(pd_bboxes).to(device),
                     torch.zeros_like(pd_scores).to(device),
+                    torch.zeros_like(pd_angles).to(device),
                     torch.zeros_like(pd_scores[..., 0]).to(device))
 
         mask_pos, align_metric, overlaps = self.get_pos_mask(pd_scores, pd_bboxes, gt_labels, gt_bboxes, anc_points,
