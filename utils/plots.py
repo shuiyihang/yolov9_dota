@@ -230,10 +230,10 @@ def output_to_target(output, max_det=300):
     # Convert model output to target format [batch_id, class_id, x, y, w, h, conf] for plotting
     targets = []
     for i, o in enumerate(output):
-        box, conf, cls = o[:max_det, :6].cpu().split((4, 1, 1), 1)
+        box, conf, cls, angle = o[:max_det, :7].cpu().split((4, 1, 1, 1), 1)  #box,conf,cls,angle
         j = torch.full((conf.shape[0], 1), i)
-        targets.append(torch.cat((j, cls, xyxy2xywh(box), conf), 1))
-    return torch.cat(targets, 0).numpy()
+        targets.append(torch.cat((j, cls, xyxy2xywh(box), angle, conf), 1))
+    return torch.cat(targets, 0).numpy()    # batch_id, class_id, x, y, w, h, conf,angle
 
 
 @threaded
@@ -276,12 +276,15 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None):
         annotator.rectangle([x, y, x + w, y + h], None, (255, 255, 255), width=2)  # borders
         if paths:
             annotator.text((x + 5, y + 5), text=Path(paths[i]).name[:40], txt_color=(220, 220, 220))  # filenames
+
+        # pred targets: [batch_id, class_id, x, y, w, h, angle, conf]
         if len(targets) > 0:
             ti = targets[targets[:, 0] == i]  # image targets
             boxes = xywh2xyxy(ti[:, 2:6]).T
             classes = ti[:, 1].astype('int')
-            labels = ti.shape[1] == 6  # labels if no conf column
-            conf = None if labels else ti[:, 6]  # check for confidence presence (label vs pred)
+            angles = ti[:,6]
+            labels = ti.shape[1] == 7  # labels if no conf column
+            conf = None if labels else ti[:, 7]  # check for confidence presence (label vs pred)
 
             if boxes.shape[1]:
                 if boxes.max() <= 1.01:  # if normalized with tolerance 0.01
@@ -293,10 +296,11 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None):
             boxes[[1, 3]] += y
             for j, box in enumerate(boxes.T.tolist()):
                 cls = classes[j]
+                angle = angles[j]
                 color = colors(cls)
                 cls = names[cls] if names else cls
                 if labels or conf[j] > 0.25:  # 0.25 conf thresh
-                    label = f'{cls}' if labels else f'{cls} {conf[j]:.1f}'
+                    label = f'{cls}' if labels else f'{cls} {conf[j]:.1f} {angle:.1f}'
                     annotator.box_label(box, label, color=color)
     annotator.im.save(fname)  # save
 

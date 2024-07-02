@@ -898,17 +898,19 @@ def non_max_suppression(
     Returns:
          list of detections, on (n,6) tensor per image [xyxy, conf, cls]
     """
-
+    # 20 = nc(15) + box(4) + angle(1)
     if isinstance(prediction, (list, tuple)):  # YOLO model in validation model, output = (inference_out, loss_out)
         prediction = prediction[0]  # select only inference output
 
+    # 关注prediction形状???
     device = prediction.device
     mps = 'mps' in device.type  # Apple MPS
     if mps:  # MPS not fully supported yet, convert tensors to CPU before NMS
         prediction = prediction.cpu()
+    angle_dim = 1
     bs = prediction.shape[0]  # batch size
-    nc = prediction.shape[1] - nm - 4  # number of classes
-    mi = 4 + nc  # mask start index
+    nc = prediction.shape[1] - nm - 4 - angle_dim  # number of classes
+    mi = 4 + nc + angle_dim  # mask start index
     xc = prediction[:, 4:mi].amax(1) > conf_thres  # candidates
 
     # Checks
@@ -925,7 +927,7 @@ def non_max_suppression(
     merge = False  # use merge-NMS
 
     t = time.time()
-    output = [torch.zeros((0, 6 + nm), device=prediction.device)] * bs
+    output = [torch.zeros((0, 7 + nm), device=prediction.device)] * bs
     for xi, x in enumerate(prediction):  # image index, image inference
         # Apply constraints
         # x[((x[:, 2:4] < min_wh) | (x[:, 2:4] > max_wh)).any(1), 4] = 0  # width-height
@@ -944,11 +946,11 @@ def non_max_suppression(
             continue
 
         # Detections matrix nx6 (xyxy, conf, cls)
-        box, cls, mask = x.split((4, nc, nm), 1)
+        box, cls, angle, mask = x.split((4, nc, angle_dim, nm), 1)
         box = xywh2xyxy(box)  # center_x, center_y, width, height) to (x1, y1, x2, y2)
         if multi_label:
             i, j = (cls > conf_thres).nonzero(as_tuple=False).T
-            x = torch.cat((box[i], x[i, 4 + j, None], j[:, None].float(), mask[i]), 1)
+            x = torch.cat((box[i], x[i, 4 + j, None], j[:, None].float(), angle[i], mask[i]), 1) # 将box，分类的概率，分类拼接
         else:  # best class only
             conf, j = cls.max(1, keepdim=True)
             x = torch.cat((box, conf, j.float(), mask), 1)[conf.view(-1) > conf_thres]
@@ -966,7 +968,7 @@ def non_max_suppression(
         if not n:  # no boxes
             continue
         elif n > max_nms:  # excess boxes
-            x = x[x[:, 4].argsort(descending=True)[:max_nms]]  # sort by confidence
+            x = x[x[:, 4].argsort(descending=True)[:max_nms]]  # sort by confidence 取分类概率最大的
         else:
             x = x[x[:, 4].argsort(descending=True)]  # sort by confidence
 

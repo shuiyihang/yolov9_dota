@@ -348,6 +348,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         lr = [x['lr'] for x in optimizer.param_groups]  # for loggers
         scheduler.step()
 
+        # bug!!!
         if RANK in {-1, 0}:
             # mAP
             callbacks.run('on_train_epoch_end', epoch=epoch)
@@ -372,6 +373,14 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             if fi > best_fitness:
                 best_fitness = fi
             log_vals = list(mloss) + list(results) + lr
+            print('+++++++++++++++++')
+            print(mloss)
+            print('+++++++++++++++++')
+            print(list(mloss))
+            print('+++++++++++++++++')
+            print(list(results))
+            print('+++++++++++++++++')
+            print(lr)
             callbacks.run('on_fit_epoch_end', log_vals, epoch, best_fitness, fi)
 
             # Save model
@@ -444,7 +453,7 @@ def parse_opt(known=False):
     parser.add_argument('--cfg', type=str, default=ROOT / 'models/detect/yolov9-s.yaml', help='model.yaml path')
     parser.add_argument('--data', type=str, default=ROOT / 'data/dota_v1_0.yaml', help='dataset.yaml path')
     parser.add_argument('--hyp', type=str, default=ROOT / 'data/hyps/hyp.scratch-high.yaml', help='hyperparameters path')
-    parser.add_argument('--epochs', type=int, default=2, help='total training epochs')
+    parser.add_argument('--epochs', type=int, default=1, help='total training epochs')
     parser.add_argument('--batch-size', type=int, default=1, help='total batch size for all GPUs, -1 for autobatch')
     parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=1024, help='train, val image size (pixels)')
     parser.add_argument('--rect', action='store_true', help='rectangular training')

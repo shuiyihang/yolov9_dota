@@ -187,19 +187,24 @@ def run(
             nb, _, height, width = im.shape  # batch size, channels, height, width
 
         # Inference
-        with dt[1]:
+        with dt[1]:     #运行到此处，打开yolo中模型输出，看看是不是走了那里
             preds, train_out = model(im) if compute_loss else (model(im, augment=augment), None)
+
 
         # Loss
         if compute_loss:
             preds = preds[1]
             #train_out = train_out[1]
             #loss += compute_loss(train_out, targets)[1]  # box, obj, cls
+            # print('+////++++++preds[1]:{} shape:++++++'.format(preds))
         else:
             preds = preds[0][1]
+            # print('+>>>>++++++preds[1]:{} shape:++++++'.format(preds))
 
+        # 非极大值抑制做了什么东西????
         # NMS
-        targets[:, 2:] *= torch.tensor((width, height, width, height), device=device)  # to pixels
+        # c_x,c_y,longside,shortside都是在dota2yolo中归一化后的0~1
+        targets[:, 2:6] *= torch.tensor((width, height, width, height), device=device)  # to pixels
         lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
         with dt[2]:
             preds = non_max_suppression(preds,
@@ -248,9 +253,13 @@ def run(
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
+
         # Plot images
         if plots and batch_i < 3:
+            # print('+++++++{} shape:{}++++++'.format('targets',targets.shape))
             plot_images(im, targets, paths, save_dir / f'val_batch{batch_i}_labels.jpg', names)  # labels
+
+
             plot_images(im, output_to_target(preds), paths, save_dir / f'val_batch{batch_i}_pred.jpg', names)  # pred
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
