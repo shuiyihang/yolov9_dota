@@ -950,6 +950,7 @@ def non_max_suppression(
         box = xywh2xyxy(box)  # center_x, center_y, width, height) to (x1, y1, x2, y2)
         if multi_label:
             i, j = (cls > conf_thres).nonzero(as_tuple=False).T
+            # 为什么x[i, 4 + j, None]就是分类概率
             x = torch.cat((box[i], x[i, 4 + j, None], j[:, None].float(), angle[i], mask[i]), 1) # 将box，分类的概率，分类拼接
         else:  # best class only
             conf, j = cls.max(1, keepdim=True)

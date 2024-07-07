@@ -78,7 +78,7 @@ class Annotator:
             self.im = im
         self.lw = line_width or max(round(sum(im.shape) / 2 * 0.003), 2)  # line width
 
-    def box_label(self, box, label='', color=(128, 128, 128), txt_color=(255, 255, 255)):
+    def box_label(self, box, angle,label='', color=(128, 128, 128), txt_color=(255, 255, 255)):
         # Add one xyxy box to image with label
         if self.pil or not is_ascii(label):
             self.draw.rectangle(box, width=self.lw, outline=color)  # box
@@ -93,8 +93,30 @@ class Annotator:
                 # self.draw.text((box[0], box[1]), label, fill=txt_color, font=self.font, anchor='ls')  # for PIL>8.0
                 self.draw.text((box[0], box[1] - h if outside else box[1]), label, fill=txt_color, font=self.font)
         else:  # cv2
-            p1, p2 = (int(box[0]), int(box[1])), (int(box[2]), int(box[3]))
-            cv2.rectangle(self.im, p1, p2, color, thickness=self.lw, lineType=cv2.LINE_AA)
+            # 按照cx,cy,w,h画框
+            cx,cy,w,h = box
+            angle_rad = math.radians(angle)
+            R = np.array([[math.cos(angle_rad), -math.sin(angle_rad)],
+                          [math.sin(angle_rad), math.cos(angle_rad)]])
+            half_w, half_h = w / 2, h / 2
+            rect_pts = np.array([[-half_w, -half_h],
+                                 [half_w, -half_h],
+                                 [half_w, half_h],
+                                 [-half_w, half_h]])
+            rotated_pts = np.dot(rect_pts, R) + np.array([cx, cy])
+            rotated_pts = rotated_pts.astype(int)
+            cv2.polylines(self.im, [rotated_pts], isClosed=True, color=color, thickness=self.lw)
+
+
+
+            # p1, p2 = (int(box[0]), int(box[1])), (int(box[2]), int(box[3]))
+            # cv2.rectangle(self.im, p1, p2, color, thickness=self.lw, lineType=cv2.LINE_AA)
+
+            # TODO 标签
+            # 暂时先取左上位置
+            left_top_idx = np.argmin(np.sum(rotated_pts, axis=1))
+            p1 = rotated_pts[left_top_idx]
+
             if label:
                 tf = max(self.lw - 1, 1)  # font thickness
                 w, h = cv2.getTextSize(label, 0, fontScale=self.lw / 3, thickness=tf)[0]  # text width, height
@@ -157,14 +179,25 @@ class Annotator:
 
     def rectangle(self, xy, fill=None, outline=None, width=1):
         # Add rectangle to image (PIL-only)
-        self.draw.rectangle(xy, fill, outline, width)
+        if self.pil:
+            self.draw.rectangle(xy, fill, outline, width)
 
     def text(self, xy, text, txt_color=(255, 255, 255), anchor='top'):
-        # Add text to image (PIL-only)
+        tf = max(self.lw - 1, 1)  # font thickness
+        text_size, _ = cv2.getTextSize(text, 0, fontScale=self.lw / 3, thickness=tf)
+        w, h = text_size
         if anchor == 'bottom':  # start y from font bottom
-            w, h = self.font.getsize(text)  # text width, height
             xy[1] += 1 - h
-        self.draw.text(xy, text, fill=txt_color, font=self.font)
+        # Ensure coordinates are integers
+        xy = (int(xy[0]), int(xy[1]))
+        # Put text on image
+        cv2.putText(self.im, text, xy, 0, self.lw/3, txt_color, thickness=tf, lineType=cv2.LINE_AA)
+
+        # Add text to image (PIL-only)
+        # if anchor == 'bottom':  # start y from font bottom
+        #     w, h = self.font.getsize(text)  # text width, height
+        #     xy[1] += 1 - h
+        # self.draw.text(xy, text, fill=txt_color, font=self.font)
 
     def fromarray(self, im):
         # Update self.im from a numpy array
@@ -262,25 +295,26 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None):
         mosaic[y:y + h, x:x + w, :] = im
 
     # Resize (optional)
-    scale = max_size / ns / max(h, w)
-    if scale < 1:
-        h = math.ceil(scale * h)
-        w = math.ceil(scale * w)
-        mosaic = cv2.resize(mosaic, tuple(int(x * ns) for x in (w, h)))
+    # scale = max_size / ns / max(h, w)
+    # if scale < 1:
+    #     h = math.ceil(scale * h)
+    #     w = math.ceil(scale * w)
+    #     mosaic = cv2.resize(mosaic, tuple(int(x * ns) for x in (w, h)))
 
     # Annotate
     fs = int((h + w) * ns * 0.01)  # font size
-    annotator = Annotator(mosaic, line_width=round(fs / 10), font_size=fs, pil=True, example=names)
+    annotator = Annotator(mosaic, line_width=round(fs / 10), font_size=fs, pil=False, example=names)
     for i in range(i + 1):
         x, y = int(w * (i // ns)), int(h * (i % ns))  # block origin
         annotator.rectangle([x, y, x + w, y + h], None, (255, 255, 255), width=2)  # borders
         if paths:
-            annotator.text((x + 5, y + 5), text=Path(paths[i]).name[:40], txt_color=(220, 220, 220))  # filenames
+            annotator.text((x + 5, y + 20), text=Path(paths[i]).name[:40], txt_color=(220, 220, 220))  # filenames
 
         # pred targets: [batch_id, class_id, x, y, w, h, angle, conf]
         if len(targets) > 0:
             ti = targets[targets[:, 0] == i]  # image targets
-            boxes = xywh2xyxy(ti[:, 2:6]).T
+            # boxes = xywh2xyxy(ti[:, 2:6]).T
+            boxes = ti[:, 2:6].T  #   x_pos y_pos w h 表示法 0~1之间的值
             classes = ti[:, 1].astype('int')
             angles = ti[:,6]
             labels = ti.shape[1] == 7  # labels if no conf column
@@ -290,10 +324,15 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None):
                 if boxes.max() <= 1.01:  # if normalized with tolerance 0.01
                     boxes[[0, 2]] *= w  # scale to pixels
                     boxes[[1, 3]] *= h
-                elif scale < 1:  # absolute coords need scale if image scales
-                    boxes *= scale
-            boxes[[0, 2]] += x
-            boxes[[1, 3]] += y
+                # elif scale < 1:  # absolute coords need scale if image scales
+                #     boxes *= scale
+
+
+            # boxes[[0, 2]] *= w  #第0行，第2行 * w
+            # boxes[[1, 3]] *= h
+
+            boxes[[0]] += x
+            boxes[[1]] += y
             for j, box in enumerate(boxes.T.tolist()):
                 cls = classes[j]
                 angle = angles[j]
@@ -301,9 +340,9 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None):
                 cls = names[cls] if names else cls
                 if labels or conf[j] > 0.25:  # 0.25 conf thresh
                     label = f'{cls}' if labels else f'{cls} {conf[j]:.1f} {angle:.1f}'
-                    annotator.box_label(box, label, color=color)
-    annotator.im.save(fname)  # save
-
+                    annotator.box_label(box,angle,label, color=color)    # 修改为斜边框
+    # annotator.im.save(fname)  # save
+    cv2.imwrite(fname, annotator.im)
 
 def plot_lr_scheduler(optimizer, scheduler, epochs=300, save_dir=''):
     # Plot LR simulating training for full epochs

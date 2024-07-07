@@ -58,6 +58,7 @@ class TaskAlignedAssigner(nn.Module):
         self.beta = beta
         self.eps = eps
 
+
     @torch.no_grad()
     def forward(self, pd_scores, pd_bboxes, pd_angles, anc_points, gt_labels, gt_bboxes,gt_angles, mask_gt):
         """This code referenced to
@@ -171,7 +172,6 @@ class TaskAlignedAssigner(nn.Module):
         # assigned target boxes, (b, max_num_obj, 4) -> (b, h*w)
         target_bboxes = gt_bboxes.view(-1, 4)[target_gt_idx]
 
-        test_shape = gt_angles.shape[-1]
         target_angles = gt_angles.view(-1,gt_angles.shape[-1])[target_gt_idx]
 
         # assigned target scores

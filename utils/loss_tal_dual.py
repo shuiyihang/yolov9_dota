@@ -103,6 +103,25 @@ class BboxLoss(nn.Module):
         return (loss_left + loss_right).mean(-1, keepdim=True)
 
 
+class AngleLoss(nn.Module):
+    def __init__(self):
+        super(AngleLoss, self).__init__()
+
+    def forward(self, pred_angles, true_angles):
+        # 将角度转换为弧度
+        pred_angles = torch.deg2rad(pred_angles)
+        true_angles = torch.deg2rad(true_angles)
+
+        # 计算余弦和正弦
+        pred_cos = torch.cos(pred_angles)
+        pred_sin = torch.sin(pred_angles)
+        true_cos = torch.cos(true_angles)
+        true_sin = torch.sin(true_angles)
+
+        # 计算均方误差
+        loss = ((pred_cos - true_cos) ** 2 + (pred_sin - true_sin) ** 2).mean()
+        return loss
+
 class ComputeLoss:
     # Compute losses
     def __init__(self, model, use_dfl=True):
@@ -112,7 +131,7 @@ class ComputeLoss:
         # Define criteria
         BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h["cls_pw"]], device=device), reduction='none')
 
-        smooth_theta = nn.SmoothL1Loss()
+        smooth_theta = AngleLoss()
         # Class label smoothing https://arxiv.org/pdf/1902.04103.pdf eqn 3
         self.cp, self.cn = smooth_BCE(eps=h.get("label_smoothing", 0.0))  # positive, negative BCE targets
 
@@ -160,7 +179,7 @@ class ComputeLoss:
                 n = matches.sum()
                 if n:
                     out[j, :n] = targets[matches, 1:]
-            out[..., 1:5] = xywh2xyxy(out[..., 1:5].mul_(scale_tensor))
+            out[..., 1:5] = xywh2xyxy(out[..., 1:5].mul_(scale_tensor))     # *w,h  用的是左上右下！！
         return out
 
     def bbox_decode(self, anchor_points, pred_dist):
@@ -195,8 +214,8 @@ class ComputeLoss:
 
         # targets
         targets = self.preprocess(targets, batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
-        gt_labels, gt_bboxes, gt_thetas= targets.split((1, 4, 1), 2)  # cls, xyxy, theta
-        mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
+        gt_labels, gt_bboxes, gt_thetas= targets.split((1, 4, 1), 2)  # cls, !!!!xyxy!!是左上右下, theta
+        mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0) #在第二维度，也就是xyxy数据上求和并于0比较，只有>0才返回true
 
         # pboxes
         pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
@@ -233,9 +252,9 @@ class ComputeLoss:
         loss[1] += self.BCEcls(pred_scores2, target_scores2.to(dtype)).sum() / target_scores_sum2 # BCE
 
         # theta loss
-        loss[3] = self.theta_loss_fn(pred_theta,target_angles.to(dtype)*fg_mask).sum() / target_scores_sum
+        loss[3] = self.theta_loss_fn(pred_theta,target_angles.to(dtype))
         loss[3] *= 0.25
-        loss[3] += self.theta_loss_fn(pred_theta2, target_angles2.to(dtype)*fg_mask2).sum() / target_scores_sum2
+        loss[3] += self.theta_loss_fn(pred_theta2, target_angles2.to(dtype))
 
         # bbox loss
         if fg_mask.sum():

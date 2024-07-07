@@ -198,7 +198,7 @@ class DualDDetect(nn.Module):
     def __init__(self, nc=80, ch=(), inplace=True):  # detection layer
         super().__init__()
         self.nc = nc  # number of classes
-        self.nl = len(ch) // 2  # number of detection layers
+        self.nl = len(ch) // 2  # number of detection layers    3
         self.reg_max = 16
         self.angle_dim = 1
         self.no = nc + self.angle_dim + self.reg_max * 4  # number of outputs per anchor
@@ -223,6 +223,7 @@ class DualDDetect(nn.Module):
         d1 = []
         d2 = []
         for i in range(self.nl):
+            # d1中包括三层的<reg,cls+angle>预测
             d1.append(torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1))
             d2.append(torch.cat((self.cv4[i](x[self.nl+i]), self.cv5[i](x[self.nl+i])), 1))
         if self.training:
@@ -243,6 +244,7 @@ class DualDDetect(nn.Module):
         #y2 = torch.cat((dbox2, cls2.sigmoid()), 1)
         #return [y1, y2] if self.export else [(y1, d1), (y2, d2)]
         #return [y1, y2] if self.export else [(y1, y2), (d1, d2)]
+
 
     def bias_init(self):
         # Initialize Detect() biases, WARNING: requires stride availability

@@ -259,7 +259,7 @@ def run(
             # print('+++++++{} shape:{}++++++'.format('targets',targets.shape))
             plot_images(im, targets, paths, save_dir / f'val_batch{batch_i}_labels.jpg', names)  # labels
 
-
+            # 在预测的图片上画图 preds为xyxy 经过函数转为xywh
             plot_images(im, output_to_target(preds), paths, save_dir / f'val_batch{batch_i}_pred.jpg', names)  # pred
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)

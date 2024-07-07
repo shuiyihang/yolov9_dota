@@ -132,7 +132,7 @@ def delete_invalid_files(imgpath, txtpath):
 if __name__ == '__main__':
     # delete_invalid_files('./val/images', './val/labelTxt')
 
-    dota2YOLOFormat(imgpath='./images/train/images',
+    dota2YOLOFormat(imgpath='E:\\yolov9\train\labels',
                     txtpath='E:\\BaiduNetdiskDownload\\train\\labelTxt-v1.0\\labelTxt',
                     dstpath='labels/train',
                     extractclassname=class_15)

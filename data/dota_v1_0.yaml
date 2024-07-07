@@ -3,8 +3,15 @@ train: ./debug_train_dataset
 val: ./debug_val_dataset # val images (relative to 'path') 5000 images
 #test: test-dev2017.txt  # 20288 of 40670 images, submit to https://competitions.codalab.org/competitions/20794
 
-# Classes
 
+#全部数据集测试使用
+#path: /root/autodl-tmp # dataset root dir
+#train: ./train_split_rate1.0_subsize1024_gap200
+#val: ./val_split_rate1.0_subsize1024_gap200 # val images (relative to 'path') 5000 images
+
+
+
+# Classes
 
 names:
   0: plane
