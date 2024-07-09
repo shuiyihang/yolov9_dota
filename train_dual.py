@@ -191,7 +191,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                                               gs,
                                               single_cls,
                                               hyp=hyp,
-                                              augment=True,
+                                              augment=False,
                                               cache=None if opt.cache == 'val' else opt.cache,
                                               rect=opt.rect,
                                               rank=LOCAL_RANK,
@@ -446,7 +446,7 @@ def parse_opt(known=False):
     parser.add_argument('--cfg', type=str, default=ROOT / 'models/detect/yolov9-s.yaml', help='model.yaml path')
     parser.add_argument('--data', type=str, default=ROOT / 'data/dota_v1_0.yaml', help='dataset.yaml path')
     parser.add_argument('--hyp', type=str, default=ROOT / 'data/hyps/hyp.scratch-high.yaml', help='hyperparameters path')
-    parser.add_argument('--epochs', type=int, default=10, help='total training epochs')
+    parser.add_argument('--epochs', type=int, default=12, help='total training epochs')
     parser.add_argument('--batch-size', type=int, default=4, help='total batch size for all GPUs, -1 for autobatch')
     parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=1024, help='train, val image size (pixels)')
     parser.add_argument('--rect', action='store_true', help='rectangular training')

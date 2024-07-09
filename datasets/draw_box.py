@@ -50,12 +50,12 @@ def draw_rotated_box(img, cx, cy, w, h, angle, color, thickness):
     # cv2.putText(img, label, label_pos, 0, thickness / 3, (255,255,255), thickness=tf, lineType=cv2.LINE_AA)
 
 
-image_path = r'E:\yolov9\yolov9\data\P0002__1__1533___824.png'
+image_path = r'E:\yolov9\yolov9\data\P0002__1__824___0.png'
 image = cv2.imread(image_path)
 if image is None:
     raise ValueError(f"Failed to load the image file {image_path}. Please check the file path and file integrity.")
 
-with open(r'E:\yolov9\yolov9\data\P0002__1__1533___824.txt', 'r') as file:
+with open(r'E:\yolov9\yolov9\data\P0002__1__824___0.txt', 'r') as file:
     lines = file.readlines()
 
 #
